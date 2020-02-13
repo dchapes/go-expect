@@ -5,8 +5,6 @@ import (
 	"io"
 	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestReaderLease(t *testing.T) {
@@ -33,6 +31,7 @@ func TestReaderLease(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			tin, tout := io.Pipe()
 
 			var wg sync.WaitGroup
@@ -46,15 +45,19 @@ func TestReaderLease(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				_, err := out.Write([]byte(test.expected))
-				require.Nil(t, err)
+				checkErr(t, "Write", err, nil)
 			}()
 
 			for i := 0; i < len(test.expected); i++ {
 				p := make([]byte, 1)
 				n, err := tin.Read(p)
-				require.Nil(t, err)
-				require.Equal(t, 1, n)
-				require.Equal(t, test.expected[i], p[0])
+				checkErr(t, "Read", err, nil)
+				if g, w := n, 1; g != w {
+					t.Fatalf("Read gave n==%d, want n==%d", g, w)
+				}
+				if g, w := p[0], test.expected[i]; g != w {
+					t.Errorf("read %d gave %q, want %q", i, g, w)
+				}
 			}
 
 			cancel()

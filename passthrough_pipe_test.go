@@ -6,48 +6,61 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 )
+
+func checkErr(t *testing.T, desc string, got, want error) {
+	t.Helper()
+	if got != want {
+		if want == nil {
+			t.Fatalf("%s unexpected error: %v\n\terr = %+#[2]v", desc, got)
+		} else {
+			t.Fatalf("%s unexpected error:\n\tgave %+#v\n\twant %+#v", desc, got, want)
+		}
+	}
+}
 
 func TestPassthroughPipe(t *testing.T) {
 	r, w := io.Pipe()
 
 	passthroughPipe, err := NewPassthroughPipe(r)
-	require.NoError(t, err)
+	checkErr(t, "NewPassthroughPipe", err, nil)
 
 	err = passthroughPipe.SetReadDeadline(time.Now().Add(time.Hour))
-	require.NoError(t, err)
+	checkErr(t, "SetReadDeadline", err, nil)
 
 	pipeError := errors.New("pipe error")
 	err = w.CloseWithError(pipeError)
-	require.NoError(t, err)
+	checkErr(t, "CloseWithError", err, nil)
 
 	p := make([]byte, 1)
 	_, err = passthroughPipe.Read(p)
-	require.Equal(t, err, pipeError)
+	checkErr(t, "Read", err, pipeError)
 }
 
 func TestPassthroughPipeTimeout(t *testing.T) {
 	r, w := io.Pipe()
 
 	passthroughPipe, err := NewPassthroughPipe(r)
-	require.NoError(t, err)
+	checkErr(t, "NewPassthroughPipe", err, nil)
 
 	err = passthroughPipe.SetReadDeadline(time.Now())
-	require.NoError(t, err)
+	checkErr(t, "SetReadDeadline", err, nil)
 
 	_, err = w.Write([]byte("a"))
-	require.NoError(t, err)
+	checkErr(t, "Write", err, nil)
 
 	p := make([]byte, 1)
 	_, err = passthroughPipe.Read(p)
-	require.True(t, os.IsTimeout(err))
+	if !os.IsTimeout(err) {
+		t.Fatalf("passthroughPipe.Read gave err=%+#v, wanted os.IsTimeout", err)
+	}
 
 	err = passthroughPipe.SetReadDeadline(time.Time{})
-	require.NoError(t, err)
+	checkErr(t, "SetReadDeadline", err, nil)
 
 	n, err := passthroughPipe.Read(p)
-	require.Equal(t, 1, n)
-	require.NoError(t, err)
+	checkErr(t, "Read", err, nil)
+	if n != 1 {
+		t.Errorf("passthroughPipe.Read gave n==%d, want n==%d", n, 1)
+	}
 }
